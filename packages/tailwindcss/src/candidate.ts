@@ -1026,7 +1026,7 @@ const printArbitraryValueCache = new DefaultMap<string, string>((input) => {
 
   let drop = new Set<ValueParser.ValueAstNode>()
 
-  ValueParser.walk(ast, (node, ctx) => {
+  walk(ast, (node, ctx) => {
     let parentArray = ctx.parent === null ? ast : (ctx.parent.nodes ?? [])
 
     // Handle operators (e.g.: inside of `calc(…)`)

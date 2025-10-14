@@ -173,7 +173,7 @@ function substituteFunctionsInValue(
   ast: ValueParser.ValueAstNode[],
   handle: (value: string, fallback?: string) => string | null,
 ) {
-  ValueParser.walk(ast, (node, ctx) => {
+  walk(ast, (node, ctx) => {
     if (node.kind === 'function' && node.value === 'theme') {
       if (node.nodes.length < 1) return
 

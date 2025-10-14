@@ -112,8 +112,8 @@ export async function applyCompatibilityHooks({
       pluginPaths.push([
         {
           id: pluginPath,
-          base: ctx.context.base as string,
-          reference: !!ctx.context.reference,
+          base: context.base as string,
+          reference: !!context.reference,
           src: node.src,
         },
         Object.keys(options).length > 0 ? options : null,
@@ -136,8 +136,8 @@ export async function applyCompatibilityHooks({
       let context = ctx.context()
       configPaths.push({
         id: node.params.slice(1, -1),
-        base: ctx.context.base as string,
-        reference: !!ctx.context.reference,
+        base: context.base as string,
+        reference: !!context.reference,
         src: node.src,
       })
       features |= Features.JsPluginCompat

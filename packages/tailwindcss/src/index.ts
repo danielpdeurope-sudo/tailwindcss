@@ -209,7 +209,7 @@ async function parseCss(
 
           let context = ctx.context()
           root = {
-            base: (ctx.context.sourceBase as string) ?? (ctx.context.base as string),
+            base: (context.sourceBase as string) ?? (context.base as string),
             pattern: path.slice(1, -1),
           }
         }

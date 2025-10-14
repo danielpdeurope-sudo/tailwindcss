@@ -133,6 +133,7 @@
     "dedent": "1.7.0",
     "lightningcss": "catalog:",
     "magic-string": "^0.30.19",
+    "mitata": "^1.0.34",
     "source-map-js": "^1.2.1"
   }
 }

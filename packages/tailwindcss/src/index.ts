@@ -11,8 +11,7 @@ import {
   rule,
   styleRule,
   toCss,
-  walk,
-  WalkAction,
+  walkCssAst,
   type AstNode,
   type AtRule,
   type Context,
@@ -34,6 +33,7 @@ import { escape, unescape } from './utils/escape'
 import { segment } from './utils/segment'
 import { topologicalSort } from './utils/topological-sort'
 import { compoundsForSelectors, IS_VALID_VARIANT_NAME, substituteAtVariant } from './variants'
+import { walk, WalkAction } from './walk'
 export type Config = UserConfig
 
 const IS_VALID_PREFIX = /^[a-z]+$/
@@ -166,7 +166,7 @@ async function parseCss(
   let root = null as Root
 
   // Handle at-rules
-  walk(ast, (node, ctx) => {
+  walkCssAst(ast, (node, ctx) => {
     if (node.kind !== 'at-rule') return
 
     // Find `@tailwind utilities` so that we can later replace it with the
@@ -177,16 +177,14 @@ async function parseCss(
     ) {
       // Any additional `@tailwind utilities` nodes can be removed
       if (utilitiesNode !== null) {
-        ctx.replaceWith([])
-        return
+        return WalkAction.Replace([])
       }
 
       // When inside `@reference` we should treat `@tailwind utilities` as if
       // it wasn't there in the first place. This should also let `build()`
       // return the cached static AST.
-      if (ctx.context.reference) {
-        ctx.replaceWith([])
-        return
+      if (ctx.context().reference) {
+        return WalkAction.Replace([])
       }
 
       let params = segment(node.params, ' ')
@@ -209,6 +207,7 @@ async function parseCss(
             throw new Error('`source(…)` paths must be quoted.')
           }
 
+          let context = ctx.context()
           root = {
             base: (ctx.context.sourceBase as string) ?? (ctx.context.base as string),
             pattern: path.slice(1, -1),
@@ -298,13 +297,13 @@ async function parseCss(
         }
       } else {
         sources.push({
-          base: ctx.context.base as string,
+          base: ctx.context().base as string,
           pattern: source,
           negated: not,
         })
       }
-      ctx.replaceWith([])
-      return
+
+      return WalkAction.ReplaceSkip([])
     }
 
     // Apply `@variant` at-rules
@@ -353,9 +352,6 @@ async function parseCss(
       if (ctx.parent !== null) {
         throw new Error('`@custom-variant` cannot be nested.')
       }
-
-      // Remove `@custom-variant` at-rule so it's not included in the compiled CSS
-      ctx.replaceWith([])
 
       let [name, selector] = segment(node.params, ' ')
 
@@ -417,8 +413,6 @@ async function parseCss(
           )
         })
         customVariantDependencies.set(name, new Set<string>())
-
-        return
       }
 
       // Variants without a selector, but with a body:
@@ -448,9 +442,10 @@ async function parseCss(
           designSystem.variants.fromAst(name, node.nodes, designSystem)
         })
         customVariantDependencies.set(name, dependencies)
-
-        return
       }
+
+      // Remove `@custom-variant` at-rule so it's not included in the compiled CSS
+      return WalkAction.ReplaceSkip([])
     }
 
     if (node.name === '@media') {
@@ -462,13 +457,13 @@ async function parseCss(
         if (param.startsWith('source(')) {
           let path = param.slice(7, -1)
 
-          walk(node.nodes, (child, ctx) => {
+          walkCssAst(node.nodes, (child) => {
             if (child.kind !== 'at-rule') return
 
             if (child.name === '@tailwind' && child.params === 'utilities') {
               child.params += ` source(${path})`
-              ctx.replaceWith([contextNode({ sourceBase: ctx.context.base }, [child])])
-              return WalkAction.Stop
+              let context = ctx.context()
+              return WalkAction.ReplaceStop([contextNode({ sourceBase: context.base }, [child])])
             }
           })
         }
@@ -482,7 +477,7 @@ async function parseCss(
           let themeParams = param.slice(6, -1)
           let hasReference = themeParams.includes('reference')
 
-          walk(node.nodes, (child) => {
+          walkCssAst(node.nodes, (child) => {
             if (child.kind !== 'at-rule') {
               if (hasReference) {
                 throw new Error(
@@ -535,8 +530,10 @@ async function parseCss(
       if (unknownParams.length > 0) {
         node.params = unknownParams.join(' ')
       } else if (params.length > 0) {
-        ctx.replaceWith(node.nodes)
+        return WalkAction.Replace(node.nodes)
       }
+
+      return WalkAction.Continue
     }
 
     // Handle `@theme`
@@ -545,7 +542,7 @@ async function parseCss(
 
       features |= Features.AtTheme
 
-      if (ctx.context.reference) {
+      if (ctx.context().reference) {
         themeOptions |= ThemeOptions.REFERENCE
       }
 
@@ -589,11 +586,10 @@ async function parseCss(
       if (!firstThemeRule) {
         firstThemeRule = styleRule(':root, :host', [])
         firstThemeRule.src = node.src
-        ctx.replaceWith([firstThemeRule])
+        return WalkAction.ReplaceSkip(firstThemeRule)
       } else {
-        ctx.replaceWith([])
+        return WalkAction.ReplaceSkip([])
       }
-      return WalkAction.Skip
     }
   })
 
@@ -685,11 +681,11 @@ async function parseCss(
 
   // Remove `@utility`, we couldn't replace it before yet because we had to
   // handle the nested `@apply` at-rules first.
-  walk(ast, (node, ctx) => {
+  walk(ast, (node) => {
     if (node.kind !== 'at-rule') return
 
     if (node.name === '@utility') {
-      ctx.replaceWith([])
+      return WalkAction.Replace([])
     }
 
     // The `@utility` has to be top-level, therefore we don't have to traverse

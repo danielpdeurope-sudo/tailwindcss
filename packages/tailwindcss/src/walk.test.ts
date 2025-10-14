@@ -40,9 +40,9 @@ describe('AST Enter (function)', () => {
     ]
 
     let paths: string[] = []
-    walk(ast, (node, { path }) => {
-      let p = path().map((n) => n.kind)
-      if (p.length === 0) p.push('ø')
+    walk(ast, (node, ctx) => {
+      let p = ctx.path().map((n) => n.kind)
+      if (p.length === 0) p.unshift('ø')
       p.push(node.kind)
 
       paths.push(p.join(' → ') || 'ø')
@@ -397,9 +397,9 @@ describe('AST Enter (obj)', () => {
 
     let paths: string[] = []
     walk(ast, {
-      enter(node, { path }) {
-        let p = path().map((n) => n.kind)
-        if (p.length === 0) p.push('ø')
+      enter(node, ctx) {
+        let p = ctx.path().map((n) => n.kind)
+        if (p.length === 0) p.unshift('ø')
         p.push(node.kind)
 
         paths.push(p.join(' → ') || 'ø')
@@ -773,9 +773,9 @@ describe('AST Exit (obj)', () => {
 
     let paths: string[] = []
     walk(ast, {
-      exit(node, { path }) {
-        let p = path().map((n) => n.kind)
-        if (p.length === 0) p.push('ø')
+      exit(node, ctx) {
+        let p = ctx.path().map((n) => n.kind)
+        if (p.length === 0) p.unshift('ø')
         p.push(node.kind)
 
         paths.push(p.join(' → ') || 'ø')
@@ -1002,16 +1002,16 @@ describe('AST Enter & Exit', () => {
 
     let paths: string[] = []
     walk(ast, {
-      enter(node, { path }) {
-        let p = path().map((n) => n.kind)
-        if (p.length === 0) p.push('ø')
+      enter(node, ctx) {
+        let p = ctx.path().map((n) => n.kind)
+        if (p.length === 0) p.unshift('ø')
         p.push(node.kind)
 
         paths.push(`Enter(${p.join(' → ') || 'ø'})`)
       },
-      exit(node, { path }) {
-        let p = path().map((n) => n.kind)
-        if (p.length === 0) p.push('ø')
+      exit(node, ctx) {
+        let p = ctx.path().map((n) => n.kind)
+        if (p.length === 0) p.unshift('ø')
         p.push(node.kind)
 
         paths.push(`Exit(${p.join(' → ') || 'ø'})`)

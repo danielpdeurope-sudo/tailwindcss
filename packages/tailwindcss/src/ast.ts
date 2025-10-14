@@ -6,7 +6,7 @@ import { Theme, ThemeOptions } from './theme'
 import { DefaultMap } from './utils/default-map'
 import { extractUsedVariables } from './utils/variables'
 import * as ValueParser from './value-parser'
-import { walk, WalkAction } from './walk'
+import { walk, WalkAction, type EnterResult, type ExitResult, type VisitContext } from './walk'
 
 const AT_SIGN = 0x40
 
@@ -182,6 +182,86 @@ export function cloneAstNode<T extends AstNode>(node: T): T {
     default:
       node satisfies never
       throw new Error(`Unknown node kind: ${(node as any).kind}`)
+  }
+}
+
+type CssVisitContext<T> = VisitContext<T> & {
+  context: () => Record<string, string | boolean>
+}
+
+export function walkCssAst<T extends AstNode>(
+  ast: T[],
+  hooks:
+    | ((node: T, ctx: CssVisitContext<T>) => EnterResult<T> | void) // Old API, enter only
+    | {
+        enter: (node: T, ctx: CssVisitContext<T>) => EnterResult<T> | void
+        exit: (node: T, ctx: CssVisitContext<T>) => ExitResult<T> | void
+      }
+    | {
+        enter: (node: T, ctx: CssVisitContext<T>) => EnterResult<T> | void
+        exit?: never
+      }
+    | {
+        enter?: never
+        exit: (node: T, ctx: CssVisitContext<T>) => ExitResult<T> | void
+      },
+) {
+  function createCustomContext(ctx: VisitContext<T>): CssVisitContext<T> {
+    return {
+      ...ctx,
+      get parent() {
+        return (
+          (ctx
+            .path()
+            .filter((n) => n.kind !== 'context')
+            .pop() as T & { nodes: T[] }) ?? null
+        )
+      },
+      path() {
+        return ctx.path().filter((n) => n.kind !== 'context')
+      },
+      context() {
+        let context: Record<string, string | boolean> = {}
+        for (let child of ctx.path()) {
+          if (child.kind === 'context') {
+            Object.assign(context, child.context)
+          }
+        }
+        return context
+      },
+    }
+  }
+
+  if (typeof hooks === 'function') {
+    walk(ast, (node, ctx) => {
+      if (node.kind === 'context') return
+      return hooks(node, createCustomContext(ctx))
+    })
+  } else if (hooks.enter && hooks.exit) {
+    walk(ast, {
+      enter: (node, ctx) => {
+        if (node.kind === 'context') return
+        return hooks.enter(node, createCustomContext(ctx))
+      },
+      exit: (node, ctx) => {
+        if (node.kind === 'context') return
+        return hooks.exit(node, createCustomContext(ctx))
+      },
+    })
+  } else if (hooks.enter) {
+    walk(ast, {
+      enter: (node, ctx) => {
+        if (node.kind === 'context') return
+        return hooks.enter(node, createCustomContext(ctx))
+      },
+    })
+  } else if (hooks.exit) {
+    walk(ast, {
+      exit: (node, ctx) => {
+        if (node.kind === 'context') return
+        return hooks.exit(node, createCustomContext(ctx))
+      },
+    })
   }
 }
 
@@ -852,9 +932,10 @@ export function toCss(ast: AstNode[], track?: boolean) {
 
 function findNode(ast: AstNode[], fn: (node: AstNode) => boolean): AstNode[] | null {
   let foundPath: AstNode[] = []
-  walk(ast, (node, ctx) => {
+  walkCssAst(ast, (node, ctx) => {
     if (fn(node)) {
       foundPath = ctx.path()
+      foundPath.push(node)
       return WalkAction.Stop
     }
   })

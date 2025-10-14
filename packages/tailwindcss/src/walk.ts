@@ -28,12 +28,12 @@ type WalkResult<T> =
   | ReturnType<typeof WalkAction.ReplaceSkip<T>>
   | ReturnType<typeof WalkAction.ReplaceStop<T>>
 
-type EnterResult<T> = WalkResult<T>
-type ExitResult<T> = Exclude<WalkResult<T>, { kind: WalkKind.Skip }>
+export type EnterResult<T> = WalkResult<T>
+export type ExitResult<T> = Exclude<WalkResult<T>, { kind: WalkKind.Skip }>
 
 type Parent<T> = T & { nodes: T[] }
 
-interface VisitContext<N> {
+export interface VisitContext<N> {
   parent: Parent<N> | null
   depth: number
   path: () => N[]

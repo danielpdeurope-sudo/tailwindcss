@@ -1,8 +1,9 @@
 import { Features } from '..'
-import { styleRule, toCss, walk, WalkAction, type AstNode } from '../ast'
+import { styleRule, toCss, walkCssAst, type AstNode } from '../ast'
 import type { DesignSystem } from '../design-system'
 import type { SourceLocation } from '../source-maps/source'
 import { segment } from '../utils/segment'
+import { WalkAction } from '../walk'
 import { applyConfigToTheme } from './apply-config-to-theme'
 import { applyKeyframesToTheme } from './apply-keyframes-to-theme'
 import { createCompatConfig } from './config/create-compat-config'
@@ -50,7 +51,7 @@ export async function applyCompatibilityHooks({
     src: SourceLocation | undefined
   }[] = []
 
-  walk(ast, (node, ctx) => {
+  walkCssAst(ast, (node, ctx) => {
     if (node.kind !== 'at-rule') return
 
     // Collect paths from `@plugin` at-rules
@@ -107,6 +108,7 @@ export async function applyCompatibilityHooks({
         options[decl.property] = parts.length === 1 ? parts[0] : parts
       }
 
+      let context = ctx.context()
       pluginPaths.push([
         {
           id: pluginPath,
@@ -117,9 +119,8 @@ export async function applyCompatibilityHooks({
         Object.keys(options).length > 0 ? options : null,
       ])
 
-      ctx.replaceWith([])
       features |= Features.JsPluginCompat
-      return
+      return WalkAction.Replace([])
     }
 
     // Collect paths from `@config` at-rules
@@ -132,15 +133,15 @@ export async function applyCompatibilityHooks({
         throw new Error('`@config` cannot be nested.')
       }
 
+      let context = ctx.context()
       configPaths.push({
         id: node.params.slice(1, -1),
         base: ctx.context.base as string,
         reference: !!ctx.context.reference,
         src: node.src,
       })
-      ctx.replaceWith([])
       features |= Features.JsPluginCompat
-      return
+      return WalkAction.Replace([])
     }
   })
 
@@ -386,7 +387,7 @@ function upgradeToFullPluginSupport({
   if (typeof resolvedConfig.important === 'string') {
     let wrappingSelector = resolvedConfig.important
 
-    walk(ast, (node, ctx) => {
+    walkCssAst(ast, (node, ctx) => {
       if (node.kind !== 'at-rule') return
       if (node.name !== '@tailwind' || node.params !== 'utilities') return
 
@@ -395,9 +396,7 @@ function upgradeToFullPluginSupport({
         return WalkAction.Stop
       }
 
-      ctx.replaceWith(styleRule(wrappingSelector, [node]))
-
-      return WalkAction.Stop
+      return WalkAction.ReplaceStop(styleRule(wrappingSelector, [node]))
     })
   }
 

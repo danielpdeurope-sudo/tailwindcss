@@ -1,5 +1,14 @@
 import { expect, it } from 'vitest'
-import { atRule, context, decl, optimizeAst, styleRule, toCss, type AstNode } from './ast'
+import {
+  atRule,
+  context,
+  decl,
+  optimizeAst,
+  styleRule,
+  toCss,
+  walkCssAst,
+  type AstNode,
+} from './ast'
 import * as CSS from './css-parser'
 import { buildDesignSystem } from './design-system'
 import { Theme } from './theme'
@@ -39,23 +48,17 @@ it('allows the placement of context nodes', () => {
   let blueContext
   let greenContext
 
-  let walkContext: Record<string, string | boolean> = {}
-  walk(ast, (node) => {
-    if (node.kind === 'context') {
-      walkContext = { ...walkContext, ...node.context }
-      return
-    }
-
+  walkCssAst(ast, (node, ctx) => {
     if (node.kind !== 'declaration') return
     switch (node.value) {
       case 'red':
-        redContext = walkContext
+        redContext = ctx.context()
         break
       case 'blue':
-        blueContext = walkContext
+        blueContext = ctx.context()
         break
       case 'green':
-        greenContext = walkContext
+        greenContext = ctx.context()
         break
     }
   })
